@@ -108,7 +108,21 @@ function getMarkerOffset(point: Acupoint): [number, number, number] {
 function installUrlModifier(loader: { manager: THREE.LoadingManager }, assetMap: Record<string, string>) {
   loader.manager.setURLModifier((url) => {
     const normalized = url.replace(/\\/g, '/')
-    return assetMap[normalized] ?? assetMap[normalized.replace(/^(\.\/)+/, '')] ?? url
+    const withoutCurrentDir = normalized.replace(/^(\.\/)+/, '')
+    const withoutLeadingSlash = withoutCurrentDir.replace(/^\/+/, '')
+    const pathFromAssets = withoutLeadingSlash.includes('/assets/')
+      ? withoutLeadingSlash.slice(withoutLeadingSlash.indexOf('/assets/') + '/assets/'.length)
+      : withoutLeadingSlash
+    const basename = withoutLeadingSlash.split('/').pop() ?? withoutLeadingSlash
+
+    return (
+      assetMap[normalized] ??
+      assetMap[withoutCurrentDir] ??
+      assetMap[withoutLeadingSlash] ??
+      assetMap[pathFromAssets] ??
+      assetMap[basename] ??
+      url
+    )
   })
 }
 
