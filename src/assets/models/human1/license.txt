@@ -1,0 +1,11 @@
+Model Information:
+* title:	Human-anatomy.glb
+* source:	https://sketchfab.com/3d-models/human-anatomyglb-14191ef860b44925be0e94462c84ffe6
+* author:	flixtlix (https://sketchfab.com/flixtlix)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Human-anatomy.glb" (https://sketchfab.com/3d-models/human-anatomyglb-14191ef860b44925be0e94462c84ffe6) by flixtlix (https://sketchfab.com/flixtlix) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
