@@ -9,6 +9,7 @@ import needleModelUrl from '../assets/models/tools/needle/base.glb?url'
 import moxaModelUrl from '../assets/models/tools/moxa/moxa.glb?url'
 import brushFontUrl from '../assets/fonts/MaShanZheng-Regular.ttf?url'
 import inkLabelUrl from '../assets/ink/ink-label.png?url'
+import smokeSheetUrl from '../assets/smoke_sheet.png?url'
 import type { Acupoint, CameraPreset, DisplayMode, SceneViewPreset } from '../types'
 
 interface HumanModelFit {
@@ -1077,10 +1078,13 @@ function MoxaToolActor({
   procedureKey: number
 }) {
   const toolRef = useRef<THREE.Group>(null)
+  const smokeOriginRef = useRef<THREE.Group>(null)
+  const smokeRefs = useRef<THREE.Sprite[]>([])
   const emberSpriteRef = useRef<THREE.Sprite>(null)
   const emberLightRef = useRef<THREE.PointLight>(null)
   const progressRef = useRef(1)
   const { scene } = useGLTF(MOXA_MODEL_URL)
+  const smokeTexture = useTexture(smokeSheetUrl)
   const flameTexture = useMemo(() => createFlameTexture([230, 44, 22]), [])
   const moxaAlignment = useMemo(() => {
     let primaryMesh: THREE.Mesh | null = null
@@ -1135,6 +1139,13 @@ function MoxaToolActor({
     })
   }, [scene])
 
+  useEffect(() => {
+    smokeTexture.wrapS = THREE.ClampToEdgeWrapping
+    smokeTexture.wrapT = THREE.ClampToEdgeWrapping
+    smokeTexture.colorSpace = THREE.SRGBColorSpace
+    smokeTexture.needsUpdate = true
+  }, [smokeTexture])
+
   useFrame(({ clock }, delta) => {
     if (!toolRef.current || !previewPoint || !previewAnchor) {
       return
@@ -1180,6 +1191,10 @@ function MoxaToolActor({
       new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), inwardDirection),
     )
 
+    if (smokeOriginRef.current) {
+      smokeOriginRef.current.position.copy(desiredEmberPoint).add(new THREE.Vector3(0, 0.012, 0))
+    }
+
     const pulse = 0.5 + 0.5 * Math.sin(clock.getElapsedTime() * 5.2)
     if (emberSpriteRef.current) {
       ;(emberSpriteRef.current.material as THREE.SpriteMaterial).opacity = 0.42 + pulse * 0.28
@@ -1189,6 +1204,23 @@ function MoxaToolActor({
       emberLightRef.current.intensity = 0.85 + pulse * 0.95
       emberLightRef.current.distance = 0.24 + pulse * 0.06
     }
+
+    smokeRefs.current.forEach((smoke, index) => {
+      if (!smoke) {
+        return
+      }
+
+      const drift = (clock.getElapsedTime() * 0.4 + index * 0.18) % 1
+      smoke.position.set(
+        Math.sin(clock.getElapsedTime() * 1.15 + index * 0.8) * 0.011,
+        0.014 + drift * 0.14,
+        Math.cos(clock.getElapsedTime() * 1.0 + index * 0.9) * 0.01,
+      )
+      smoke.scale.setScalar(0.068 + drift * 0.07)
+      const material = smoke.material as THREE.SpriteMaterial
+      material.opacity = (isActive ? 0.62 : 0.38) * (1 - drift * 0.58)
+      material.rotation = Math.sin(clock.getElapsedTime() * 0.75 + index) * 0.22
+    })
   })
 
   if (!previewPoint || !previewAnchor) {
@@ -1219,6 +1251,28 @@ function MoxaToolActor({
           distance={0.32}
           decay={2}
         />
+      </group>
+      <group ref={smokeOriginRef}>
+        {Array.from({ length: 9 }).map((_, index) => (
+          <sprite
+            key={index}
+            ref={(node) => {
+              if (node) {
+                smokeRefs.current[index] = node
+              }
+            }}
+            position={[0, 0.02 + index * 0.02, 0]}
+            raycast={disableRaycast}
+          >
+            <spriteMaterial
+              map={smokeTexture}
+              color="#eef2f5"
+              transparent
+              opacity={0.26}
+              depthWrite={false}
+            />
+          </sprite>
+        ))}
       </group>
     </group>
   )

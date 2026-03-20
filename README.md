@@ -1,47 +1,91 @@
-# 3D Human Acupoint Demo
+# 3D 人体穴位演示
 
-涓€涓熀浜?`React + Vite + Three.js + React Three Fiber` 鐨?3D 浜轰綋绌翠綅婕旂ず椤圭洰锛屽寘鍚細
+基于 `React + Vite + Three.js + React Three Fiber` 的 3D 人体穴位教学演示项目，面向桌面端浏览，重点展示：
 
-- 3D 浜轰綋妯″瀷灞曠ず
-- 绌翠綅鐐逛綅銆侀珮浜拰涓夌淮鏍囨敞
-- 閽堢伕 / 鑹剧伕涓ょ婕旂ず妯″紡
-- 绌翠綅妫€绱€佺瓫閫夊拰瑙嗚鍒囨崲
-- `human2` 妯″瀷涓撶敤鐨勫叧閿┐浣嶉敋鐐规暟鎹?
-## Tech Stack
+- 3D 人体上的穴位定位
+- 针灸与艾灸两种演示模式
+- 穴位名称、经络筛选、视角切换
+- GitHub Pages 静态发布
+
+在线访问：
+[https://god2father.github.io/3dhuman/](https://god2father.github.io/3dhuman/)
+
+## 当前能力
+
+- 使用 `human2` 作为主展示人体模型
+- 已接入针灸针与艾灸棒 3D 模型
+- 针灸模式支持选中穴位后的进针演示
+- 艾灸模式支持火头、烟雾、绕圈运动演示
+- 穴位选中后支持中文题签展示
+- 支持 GitHub Pages 发布
+
+## 技术栈
 
 - React 19
 - Vite
+- TypeScript
 - Three.js
 - @react-three/fiber
 - @react-three/drei
-- TypeScript
 
-## Local Development
+## 本地开发
 
 ```bash
 npm install
 npm run dev
 ```
 
-榛樿寮€鍙戝湴鍧€閫氬父涓猴細
+默认开发地址：
 
 ```text
 http://127.0.0.1:5173
 ```
 
-## Production Build
+## 构建
 
 ```bash
 npm run build
 ```
 
-鏋勫缓浜х墿杈撳嚭鍒?`dist/`銆?
-## GitHub Pages
+构建产物输出到：
 
-浠撳簱宸查厤缃?GitHub Pages Actions 宸ヤ綔娴併€傛帹閫佸埌 `main` 鍚庝細鑷姩鏋勫缓骞跺彂甯冨埌锛?
-[https://god2father.github.io/3dhuman/](https://god2father.github.io/3dhuman/)
+```text
+dist/
+```
 
-濡傛灉椤甸潰娌℃湁绔嬪嵆鏇存柊锛岄€氬父绛夊緟 1 鍒?3 鍒嗛挓鍗冲彲銆?
-## Current Notes
+GitHub Pages 发布目录使用：
 
-- 褰撳墠绌翠綅瀹氫綅姝ｄ粠鈥滅粡楠屽潗鏍囨槧灏勨€濆垏鎹㈠埌鈥渉uman2 涓撶敤琛ㄩ潰閿氱偣鈥濇柟妗堛€?- `src/data/human2Anchors.ts` 鐩墠瀛樻斁鐨勬槸鍏抽敭绌翠綅閿氱偣锛屽悗缁彲缁х画鎵╁睍銆?- 鑻ラ渶瑕佹洿楂樼簿搴︼紝涓嬩竴姝ュ簲澧炲姞妯″瀷琛ㄩ潰鏍＄偣宸ュ叿锛岃€屼笉鏄户缁叏灞€缂╂斁鍧愭爣銆?
+```text
+docs/
+```
+
+## 项目结构
+
+```text
+src/
+  assets/
+    fonts/
+    ink/
+    models/
+  components/
+    HumanScene.tsx
+  data/
+    acupoints.ts
+    human2Anchors.ts
+  App.tsx
+  style.css
+docs/
+  assets/
+```
+
+## 当前说明
+
+- 穴位定位以 `human2` 模型为基准
+- 一部分穴位已切到锚点定位链路
+- 艾灸火头与烟雾效果仍在持续微调
+- 当前版本以教学演示为主，不是医疗诊断工具
+
+## 更新记录
+
+详见：
+[CHANGELOG.md](./CHANGELOG.md)
