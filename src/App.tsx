@@ -1,4 +1,4 @@
-import { Suspense, lazy, useDeferredValue, useMemo, useState } from 'react'
+﻿import { Suspense, lazy, useDeferredValue, useMemo, useState } from 'react'
 import { acupoints, bodyRegions, meridians } from './data/acupoints'
 import type { Acupoint, DisplayMode, Filters, SceneViewPreset } from './types'
 
@@ -7,7 +7,7 @@ const HumanScene = lazy(async () => {
   return { default: module.HumanScene }
 })
 
-type FloatingPanel = 'search' | 'mode' | 'view' | 'detail' | 'library' | null
+type DockPanelKey = 'meridian' | 'view' | 'detail' | 'library'
 
 const defaultFilters: Filters = {
   keyword: '',
@@ -22,9 +22,9 @@ const displayModeLabels: Record<DisplayMode, string> = {
 }
 
 const displayModeDescriptions: Record<DisplayMode, string> = {
-  info: '查看定位、归经、主治与操作说明。',
-  acupuncture: '演示进针方向、针体路径与局部反馈。',
-  moxibustion: '演示热区、悬灸轨迹与灸感扩散。',
+  info: '查看穴位定位、归经、主治与操作说明。',
+  acupuncture: '突出进针方向、深度与针刺路径演示。',
+  moxibustion: '突出热区范围、悬灸轨迹与热感扩散。',
 }
 
 const viewPresetLabels: Record<Exclude<SceneViewPreset, 'focus'>, string> = {
@@ -92,6 +92,44 @@ function ControlIcon({ kind }: { kind: 'search' | 'mode' | 'view' | 'detail' | '
   )
 }
 
+function ModeIcon({ mode }: { mode: DisplayMode }) {
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {mode === 'info' && (
+        <>
+          <circle cx="12" cy="8" r="2.7" {...common} />
+          <path d="M12 11.7v5.1" {...common} />
+          <path d="M9.8 16.8h4.4" {...common} />
+          <path d="M6.2 18.5c1.4-2.6 3.4-3.9 5.8-3.9s4.4 1.3 5.8 3.9" {...common} />
+        </>
+      )}
+      {mode === 'acupuncture' && (
+        <>
+          <path d="M5.5 18.5L18.5 5.5" {...common} />
+          <path d="M15.7 5.5h2.8v2.8" {...common} />
+          <path d="M4.7 19.3l2-.7-1.2-1.2z" {...common} />
+          <path d="M9.8 14.2l1.8 1.8" {...common} />
+        </>
+      )}
+      {mode === 'moxibustion' && (
+        <>
+          <path d="M12 4.8c1.5 1.8 3.2 3.7 3.2 5.9a3.2 3.2 0 1 1-6.4 0c0-2.2 1.7-4.1 3.2-5.9z" {...common} />
+          <path d="M8.4 14.7c.9 1 2.1 1.5 3.6 1.5s2.7-.5 3.6-1.5" {...common} />
+          <path d="M7.4 18.3h9.2" {...common} />
+        </>
+      )}
+    </svg>
+  )
+}
+
 function matchesKeyword(point: Acupoint, keyword: string) {
   if (!keyword.trim()) {
     return true
@@ -108,13 +146,15 @@ function matchesKeyword(point: Acupoint, keyword: string) {
   ].some((value) => value.toLowerCase().includes(normalized))
 }
 
-function FloatingButton({
+function PanelHeaderButton({
   active,
+  expanded,
   icon,
   label,
   onClick,
 }: {
   active: boolean
+  expanded?: boolean
   icon: React.ReactNode
   label: string
   onClick: () => void
@@ -122,19 +162,28 @@ function FloatingButton({
   return (
     <button
       type="button"
-      className={`floating-button ${active ? 'is-active' : ''}`}
+      className={`panel-header-button ${active ? 'is-active' : ''}`}
       onClick={onClick}
       aria-pressed={active}
+      aria-expanded={expanded}
       aria-label={label}
       title={label}
     >
-      <span className="floating-button-icon">{icon}</span>
-      <span className="floating-button-label">{label}</span>
+      <span className="panel-header-button-icon">{icon}</span>
+      {typeof expanded === 'boolean' && (
+        <span className={`panel-header-button-caret ${expanded ? 'is-open' : ''}`} aria-hidden="true">
+          ▾
+        </span>
+      )}
     </button>
   )
 }
 
 export default function App() {
+  const calibrationEnabled =
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('calibrate') === '1'
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('info')
   const [viewPreset, setViewPreset] = useState<SceneViewPreset>('front')
@@ -142,12 +191,22 @@ export default function App() {
   const [selectedAcupointId, setSelectedAcupointId] = useState<string>('')
   const [hoveredAcupointId, setHoveredAcupointId] = useState<string | null>(null)
   const [procedureKey, setProcedureKey] = useState(0)
-  const [activePanel, setActivePanel] = useState<FloatingPanel>(null)
+  const [openDockPanels, setOpenDockPanels] = useState<Record<DockPanelKey, boolean>>({
+    meridian: true,
+    view: true,
+    detail: true,
+    library: true,
+  })
   const deferredKeyword = useDeferredValue(filters.keyword)
+
+  const availableAcupoints = useMemo(
+    () => (calibrationEnabled ? acupoints : acupoints.filter((point) => Boolean(point.surfaceAnchor))),
+    [calibrationEnabled],
+  )
 
   const filteredAcupoints = useMemo(
     () =>
-      acupoints.filter((point) => {
+      availableAcupoints.filter((point) => {
         if (filters.meridian !== 'all' && point.meridian !== filters.meridian) {
           return false
         }
@@ -158,7 +217,7 @@ export default function App() {
 
         return matchesKeyword(point, deferredKeyword)
       }),
-    [deferredKeyword, filters.bodyRegion, filters.meridian],
+    [availableAcupoints, deferredKeyword, filters.bodyRegion, filters.meridian],
   )
 
   const selectedAcupoint = useMemo(() => {
@@ -187,393 +246,394 @@ export default function App() {
   }, [filteredAcupoints, selectedAcupoint])
 
   const activeViewLabel =
-    viewPreset === 'focus' ? `聚焦 ${selectedAcupoint?.name ?? '穴位'}` : viewPresetLabels[viewPreset]
+    viewPreset === 'focus' ? `聚焦 | ${selectedAcupoint?.name ?? '穴位'}` : viewPresetLabels[viewPreset]
   const modeThemeClass = `theme-${displayMode}`
 
   const handleSelectAcupoint = (id: string) => {
     setSelectedAcupointId(id)
     setViewPreset('focus')
     setProcedureKey((current) => current + 1)
-    setActivePanel('detail')
   }
 
   const handleClearSelection = () => {
     setSelectedAcupointId('')
     setHoveredAcupointId(null)
     setViewPreset('front')
-    setActivePanel(null)
   }
 
-  const togglePanel = (panel: FloatingPanel) => {
-    setActivePanel((current) => (current === panel ? null : panel))
+  const toggleDockPanel = (panel: DockPanelKey) => {
+    setOpenDockPanels((current) => ({
+      ...current,
+      [panel]: !current[panel],
+    }))
   }
 
   return (
     <div className="page-shell">
       <main className="immersive-page">
-        <section className="scene-panel" aria-label="3D 主场景">
+        <section className="scene-panel" aria-label="3D 针灸艾灸场景">
           <div className="scene-frame">
             <div className="scene-backdrop-glow scene-backdrop-glow-a" />
             <div className="scene-backdrop-glow scene-backdrop-glow-b" />
             <div className="scene-grid" />
 
-            <header className="top-bar">
-              <div className="brand-card">
-                <span className="eyebrow">Meridian Atlas</span>
-                <h1>3D 经络穴位演示</h1>
-                <p>用于展示人体穴位、针灸与艾灸动画路径。</p>
+            <div className="stage-shell">
+              <div className="stage-spotlight" />
+              <div className="scene-canvas-hitbox">
+                <Suspense fallback={<div className="scene-loading">3D 场景加载中...</div>}>
+                  <HumanScene
+                    acupoints={filteredAcupoints}
+                    selectedAcupoint={selectedAcupoint}
+                    hoveredAcupointId={hoveredAcupointId}
+                    displayMode={displayMode}
+                    viewPreset={viewPreset}
+                    showMarkers={showMarkers}
+                    procedureKey={procedureKey}
+                    onSelectAcupoint={handleSelectAcupoint}
+                    onClearSelection={handleClearSelection}
+                    onHoverAcupoint={setHoveredAcupointId}
+                  />
+                </Suspense>
+              </div>
+            </div>
+
+            <header className="page-header">
+              <div className="hero-copy">
+                <p className="hero-kicker">数字经络交互界面</p>
+                <h1>
+                  三维经络穴位
+                  <span>专业演示界面</span>
+                </h1>
               </div>
 
-              <div className="status-strip" aria-label="当前状态">
-                <div className="status-chip">
-                  <span>模式</span>
-                  <strong>{displayModeLabels[displayMode]}</strong>
-                </div>
-                <div className="status-chip">
-                  <span>视角</span>
-                  <strong>{activeViewLabel}</strong>
-                </div>
-                <div className="status-chip">
-                  <span>结果</span>
-                  <strong>{filteredAcupoints.length} 个穴位</strong>
-                </div>
-              </div>
+              <nav className="header-nav" aria-label="主导航">
+                <button type="button" className="nav-button is-active">
+                  首页
+                </button>
+                <button type="button" className="nav-button">
+                  经络图谱
+                </button>
+                <button type="button" className="nav-button">
+                  资料
+                </button>
+                <button type="button" className="nav-button">
+                  关于
+                </button>
+                <button type="button" className="nav-button">
+                  个人
+                </button>
+              </nav>
             </header>
 
-            <aside className="control-dock" aria-label="场景控制">
-              <FloatingButton
-                active={activePanel === 'search'}
-                icon={<ControlIcon kind="search" />}
-                label="筛选"
-                onClick={() => togglePanel('search')}
-              />
-              <FloatingButton
-                active={activePanel === 'mode'}
-                icon={<ControlIcon kind="mode" />}
-                label="模式"
-                onClick={() => togglePanel('mode')}
-              />
-              <FloatingButton
-                active={activePanel === 'view'}
-                icon={<ControlIcon kind="view" />}
-                label="视角"
-                onClick={() => togglePanel('view')}
-              />
-              <FloatingButton
-                active={activePanel === 'detail'}
-                icon={<ControlIcon kind="detail" />}
-                label="详情"
-                onClick={() => togglePanel('detail')}
-              />
-              <FloatingButton
-                active={activePanel === 'library'}
-                icon={<ControlIcon kind="library" />}
-                label="穴位"
-                onClick={() => togglePanel('library')}
-              />
-              <button
-                type="button"
-                className={`marker-toggle ${showMarkers ? 'is-active' : ''}`}
-                onClick={() => setShowMarkers((current) => !current)}
-                aria-pressed={showMarkers}
-                title={showMarkers ? '隐藏点位' : '显示点位'}
-              >
-                <span className="floating-button-icon marker-toggle-icon">
-                  <ControlIcon kind="marker" />
-                </span>
-                <span>{showMarkers ? '隐藏点位' : '显示点位'}</span>
-              </button>
-            </aside>
+            <div className="hero-layout">
+              <aside className="sidebar sidebar-left">
+                <div className="sidebar-left-stack">
+                  <section className="panel-card mode-panel-left mode-panel-left-compact">
+                    <div className="compact-panel-label">演示模式</div>
 
-            {activePanel === 'search' && (
-              <section className="floating-panel panel-search" aria-label="筛选与搜索">
-                <div className="panel-header">
-                  <div className="panel-title-block">
-                    <span className="panel-overline">Search</span>
-                    <h2>筛选与搜索</h2>
-                  </div>
-                  <button type="button" className="ghost-button" onClick={() => setFilters(defaultFilters)}>
-                    重置
-                  </button>
-                </div>
-
-                <div className="panel-stack">
-                  <input
-                    type="search"
-                    className="floating-input"
-                    placeholder="搜索穴位、别名、适应症"
-                    value={filters.keyword}
-                    onChange={(event) =>
-                      setFilters((current) => ({
-                        ...current,
-                        keyword: event.target.value,
-                      }))
-                    }
-                  />
-
-                  <div className="panel-grid">
-                    <label className="field-group">
-                      <span>经络</span>
-                      <select
-                        value={filters.meridian}
-                        onChange={(event) =>
-                          setFilters((current) => ({
-                            ...current,
-                            meridian: event.target.value as Filters['meridian'],
-                          }))
-                        }
-                      >
-                        <option value="all">全部经络</option>
-                        {meridians.map((meridian) => (
-                          <option key={meridian} value={meridian}>
-                            {meridian}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="field-group">
-                      <span>部位</span>
-                      <select
-                        value={filters.bodyRegion}
-                        onChange={(event) =>
-                          setFilters((current) => ({
-                            ...current,
-                            bodyRegion: event.target.value as Filters['bodyRegion'],
-                          }))
-                        }
-                      >
-                        <option value="all">全部部位</option>
-                        {bodyRegions.map((region) => (
-                          <option key={region.value} value={region.value}>
-                            {region.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="panel-note">
-                    当前结果 <strong>{filteredAcupoints.length}</strong> 个
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {activePanel === 'mode' && (
-              <section className="floating-panel panel-mode" aria-label="展示模式">
-                <div className="panel-header">
-                  <div className="panel-title-block">
-                    <span className="panel-overline">Mode</span>
-                    <h2>展示模式</h2>
-                  </div>
-                </div>
-
-                <div className="mode-stack">
-                  {(['info', 'acupuncture', 'moxibustion'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className={`mode-card theme-${mode} ${displayMode === mode ? 'is-active' : ''}`}
-                      onClick={() => setDisplayMode(mode)}
-                    >
-                      <span className="mode-card-line" />
-                      <strong>{displayModeLabels[mode]}</strong>
-                      <span>{displayModeDescriptions[mode]}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {activePanel === 'view' && (
-              <section className="floating-panel panel-view" aria-label="视角控制">
-                <div className="panel-header">
-                  <div className="panel-title-block">
-                    <span className="panel-overline">View</span>
-                    <h2>预设视角</h2>
-                  </div>
-                </div>
-
-                <div className="pill-group">
-                  {(Object.keys(viewPresetLabels) as Array<Exclude<SceneViewPreset, 'focus'>>).map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      className={`pill ${viewPreset === preset ? 'is-active' : ''}`}
-                      onClick={() => setViewPreset(preset)}
-                    >
-                      {viewPresetLabels[preset]}
-                    </button>
-                  ))}
-
-                  <button
-                    type="button"
-                    className={`pill ${viewPreset === 'focus' ? 'is-active' : ''}`}
-                    onClick={() => setViewPreset('focus')}
-                    disabled={!selectedAcupoint}
-                  >
-                    聚焦穴位
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {activePanel === 'detail' && selectedAcupoint && (
-              <aside className={`floating-panel panel-detail ${modeThemeClass}`} aria-label="穴位详情">
-                <div className="panel-header">
-                  <div className="panel-title-block">
-                    <span className="panel-overline">Acupoint</span>
-                    <h2>{selectedAcupoint.name}</h2>
-                  </div>
-                  <span className="panel-badge">{selectedAcupoint.aliases[0]}</span>
-                </div>
-
-                <div className="panel-accent-bar" />
-
-                <p className="detail-summary">{selectedAcupoint.summary}</p>
-
-                <dl className="info-grid">
-                  <div>
-                    <dt>所属经络</dt>
-                    <dd>{selectedAcupoint.meridian}</dd>
-                  </div>
-                  <div>
-                    <dt>身体部位</dt>
-                    <dd>{selectedBodyRegionLabel}</dd>
-                  </div>
-                  <div>
-                    <dt>定位说明</dt>
-                    <dd>{selectedAcupoint.location}</dd>
-                  </div>
-                  <div>
-                    <dt>操作建议</dt>
-                    <dd>
-                      {displayMode === 'moxibustion'
-                        ? selectedAcupoint.moxibustion
-                        : selectedAcupoint.acupuncture}
-                    </dd>
-                  </div>
-                </dl>
-
-                <div className="detail-section">
-                  <h3>主治与应用</h3>
-                  <div className="tag-list">
-                    {selectedAcupoint.indications.map((item) => (
-                      <span key={item} className="tag">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {relatedAcupoints.length > 0 && (
-                  <div className="detail-section">
-                    <h3>相关穴位</h3>
-                    <div className="related-strip">
-                      {relatedAcupoints.map((point) => (
+                    <div className="mode-button-row mode-button-row-compact" role="list" aria-label="演示模式列表">
+                      {(['info', 'acupuncture', 'moxibustion'] as const).map((mode) => (
                         <button
-                          key={point.id}
+                          key={mode}
                           type="button"
-                          className="related-item"
-                          onClick={() => handleSelectAcupoint(point.id)}
+                          className={`mode-chip mode-chip-compact theme-${mode} ${displayMode === mode ? 'is-active' : ''}`}
+                          onClick={() => setDisplayMode(mode)}
                         >
-                          <strong>{point.name}</strong>
-                          <span>{point.meridian}</span>
+                          <span className={`mode-chip-icon theme-${mode}`} aria-hidden="true">
+                            <ModeIcon mode={mode} />
+                          </span>
+                          <strong>{displayModeLabels[mode]}</strong>
                         </button>
                       ))}
                     </div>
-                  </div>
-                )}
+                  </section>
+
+                  <section className={`panel-card mode-status-card mode-status-card-left ${modeThemeClass}`} aria-label="当前模式">
+                    <div className="mode-status-main">
+                      <span className={`mode-status-icon theme-${displayMode}`} aria-hidden="true">
+                        <ModeIcon mode={displayMode} />
+                      </span>
+                      <div className="mode-status-copy">
+                        <span className="scene-hud-mode">当前模式</span>
+                        <strong>{displayModeLabels[displayMode]}</strong>
+                        <span>{displayModeDescriptions[displayMode]}</span>
+                      </div>
+                    </div>
+                  </section>
+                </div>
               </aside>
-            )}
 
-            {activePanel === 'library' && (
-              <section className="floating-panel panel-library" aria-label="穴位列表">
-                <div className="panel-header">
-                  <div className="panel-title-block">
-                    <span className="panel-overline">Library</span>
-                    <h2>穴位列表</h2>
+              <section className="stage-column">
+                <div className="stage-status-bar" aria-label="系统状态">
+                  <span>
+                    当前模式:
+                    <strong>{displayModeLabels[displayMode]}</strong>
+                  </span>
+                  <span>
+                    当前视角:
+                    <strong>{activeViewLabel}</strong>
+                  </span>
+                  <span>
+                    当前穴位:
+                    <strong>{selectedAcupoint?.name ?? '未选择'}</strong>
+                  </span>
+                </div>
+
+                {selectedAcupoint && (
+                  <section className={`selection-summary ${modeThemeClass}`} aria-label="当前穴位摘要">
+                    <div className="selection-summary-copy">
+                      <strong>{selectedAcupoint.name}</strong>
+                      <p className="scene-hud-summary">{selectedAcupoint.summary}</p>
+                    </div>
+                    <div className="scene-hud-meta">
+                      <span>{selectedAcupoint.aliases[0]}</span>
+                      <span>{selectedAcupoint.meridian}</span>
+                      <span>{selectedBodyRegionLabel}</span>
+                    </div>
+                  </section>
+                )}
+
+                {relatedAcupoints.length > 0 && (
+                  <section className="related-ribbon" aria-label="相关穴位">
+                    {relatedAcupoints.map((point) => (
+                      <button
+                        key={point.id}
+                        type="button"
+                        className="related-pill"
+                        onClick={() => handleSelectAcupoint(point.id)}
+                      >
+                        <strong>{point.name}</strong>
+                        <span>{point.aliases[0]}</span>
+                      </button>
+                    ))}
+                  </section>
+                )}
+              </section>
+
+              <aside className="sidebar sidebar-right">
+                <section className="panel-card right-dock-panel">
+                  <div className="control-column">
+                    <section className={`control-section control-card ${openDockPanels.meridian ? 'is-active' : ''}`}>
+                      <div className="card-header">
+                        <div className="card-title-group">
+                          <span className="card-kicker">经络控制</span>
+                          <h2>经络控制面板</h2>
+                        </div>
+                        <PanelHeaderButton
+                          active={openDockPanels.meridian}
+                          expanded={openDockPanels.meridian}
+                          icon={<ControlIcon kind="detail" />}
+                          label="展开或收起经络控制面板"
+                          onClick={() => toggleDockPanel('meridian')}
+                        />
+                      </div>
+
+                      <div className={`control-section-body ${openDockPanels.meridian ? 'is-open' : ''}`}>
+                        <div className="meridian-chip-grid" role="list" aria-label="经络系统">
+                          <button
+                            type="button"
+                            className={`meridian-chip ${filters.meridian === 'all' ? 'is-active' : ''}`}
+                            onClick={() =>
+                              setFilters((current) => ({
+                                ...current,
+                                meridian: 'all',
+                              }))
+                            }
+                          >
+                            全部
+                          </button>
+                          {meridians.slice(0, 10).map((meridian) => (
+                            <button
+                              key={meridian}
+                              type="button"
+                              className={`meridian-chip ${filters.meridian === meridian ? 'is-active' : ''}`}
+                              onClick={() =>
+                                setFilters((current) => ({
+                                  ...current,
+                                  meridian,
+                                }))
+                              }
+                            >
+                              {meridian}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className={`control-section control-card ${openDockPanels.view ? 'is-active' : ''}`}>
+                      <div className="card-header">
+                        <div className="card-title-group">
+                          <span className="card-kicker">视图控制</span>
+                          <h2>视角与显示</h2>
+                        </div>
+                        <PanelHeaderButton
+                          active={openDockPanels.view}
+                          expanded={openDockPanels.view}
+                          icon={<ControlIcon kind="view" />}
+                          label="展开或收起视角与显示"
+                          onClick={() => toggleDockPanel('view')}
+                        />
+                      </div>
+
+                      <div className={`control-section-body ${openDockPanels.view ? 'is-open' : ''}`}>
+                        <div className="view-button-grid">
+                          {(Object.keys(viewPresetLabels) as Array<Exclude<SceneViewPreset, 'focus'>>).map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              className={`view-card ${viewPreset === preset ? 'is-active' : ''}`}
+                              onClick={() => setViewPreset(preset)}
+                            >
+                              {viewPresetLabels[preset]}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={`view-card ${viewPreset === 'focus' ? 'is-active' : ''}`}
+                            onClick={() => setViewPreset('focus')}
+                            disabled={!selectedAcupoint}
+                          >
+                            聚焦
+                          </button>
+                        </div>
+
+                        <div className="toggle-row">
+                          <span>显示穴位标记</span>
+                          <button
+                            type="button"
+                            className={`toggle-pill ${showMarkers ? 'is-on' : ''}`}
+                            onClick={() => setShowMarkers((current) => !current)}
+                            aria-pressed={showMarkers}
+                          >
+                            <span />
+                          </button>
+                        </div>
+
+                        <div className="toggle-row">
+                          <span>聚焦当前穴位</span>
+                          <button
+                            type="button"
+                            className={`toggle-pill ${viewPreset === 'focus' ? 'is-on' : ''}`}
+                            onClick={() => setViewPreset(selectedAcupoint ? 'focus' : 'front')}
+                            aria-pressed={viewPreset === 'focus'}
+                            disabled={!selectedAcupoint}
+                          >
+                            <span />
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+
+                    {selectedAcupoint && (
+                      <section className={`control-section detail-card ${modeThemeClass} ${openDockPanels.detail ? 'is-active' : ''}`}>
+                        <div className="card-header">
+                          <div className="card-title-group">
+                            <span className="card-kicker">当前穴位</span>
+                            <h2>{selectedAcupoint.name}</h2>
+                          </div>
+                          <div className="section-header-actions">
+                            <button type="button" className="ghost-button" onClick={handleClearSelection}>
+                              清除
+                            </button>
+                            <PanelHeaderButton
+                              active={openDockPanels.detail}
+                              expanded={openDockPanels.detail}
+                              icon={<ControlIcon kind="detail" />}
+                              label="展开或收起当前穴位"
+                              onClick={() => toggleDockPanel('detail')}
+                            />
+                          </div>
+                        </div>
+
+                        <div className={`control-section-body ${openDockPanels.detail ? 'is-open' : ''}`}>
+                          <p className="detail-summary">{selectedAcupoint.summary}</p>
+
+                          <dl className="info-grid">
+                            <div>
+                              <dt>别名</dt>
+                              <dd>{selectedAcupoint.aliases[0]}</dd>
+                            </div>
+                            <div>
+                              <dt>所属经络</dt>
+                              <dd>{selectedAcupoint.meridian}</dd>
+                            </div>
+                            <div>
+                              <dt>身体部位</dt>
+                              <dd>{selectedBodyRegionLabel}</dd>
+                            </div>
+                            <div>
+                              <dt>定位说明</dt>
+                              <dd>{selectedAcupoint.location}</dd>
+                            </div>
+                          </dl>
+
+                          <div className="detail-section">
+                            <h3>主治与应用</h3>
+                            <div className="tag-list">
+                              {selectedAcupoint.indications.slice(0, 6).map((item) => (
+                                <span key={item} className="tag">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    )}
+
+                    <section className={`control-section library-card ${openDockPanels.library ? 'is-active' : ''}`}>
+                      <div className="card-header">
+                        <div className="card-title-group">
+                          <span className="card-kicker">穴位库</span>
+                          <h2>穴位库</h2>
+                        </div>
+                        <PanelHeaderButton
+                          active={openDockPanels.library}
+                          expanded={openDockPanels.library}
+                          icon={<ControlIcon kind="library" />}
+                          label="展开或收起穴位库"
+                          onClick={() => toggleDockPanel('library')}
+                        />
+                      </div>
+
+                      <div className={`control-section-body ${openDockPanels.library ? 'is-open' : ''}`}>
+                        <div className="acupoint-strip" role="list" aria-label="穴位列表">
+                          {filteredAcupoints.map((point) => (
+                            <button
+                              key={point.id}
+                              type="button"
+                              className={`strip-item ${selectedAcupoint?.id === point.id ? 'is-selected' : ''}`}
+                              onClick={() => handleSelectAcupoint(point.id)}
+                            >
+                              <strong>{point.name}</strong>
+                              <span>{point.aliases[0]}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
                   </div>
-                  <span className="panel-badge">{filteredAcupoints.length} 个</span>
-                </div>
+                </section>
+              </aside>
+            </div>
 
-                <div className="acupoint-strip" role="list" aria-label="穴位列表">
-                  {filteredAcupoints.map((point) => (
-                    <button
-                      key={point.id}
-                      type="button"
-                      className={`strip-item ${selectedAcupoint?.id === point.id ? 'is-selected' : ''}`}
-                      onClick={() => handleSelectAcupoint(point.id)}
-                    >
-                      <strong>{point.name}</strong>
-                      <span>{point.aliases[0]}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {selectedAcupoint && (
-              <section className={`scene-hud ${modeThemeClass}`} aria-label="当前穴位摘要">
-                <span className="scene-hud-mode">{displayModeLabels[displayMode]}</span>
-                <strong>{selectedAcupoint.name}</strong>
-                <p className="scene-hud-summary">{selectedAcupoint.summary}</p>
-                <div className="scene-hud-meta">
-                  <span>{selectedAcupoint.aliases[0]}</span>
-                  <span>{selectedAcupoint.meridian}</span>
-                  <span>{selectedBodyRegionLabel}</span>
-                </div>
-              </section>
-            )}
-
-            {selectedAcupoint && relatedAcupoints.length > 0 && activePanel !== 'library' && (
-              <div className="scene-related-rail" aria-label="快捷相关穴位">
-                {relatedAcupoints.map((point) => (
-                  <button
-                    key={point.id}
-                    type="button"
-                    className="related-pill"
-                    onClick={() => handleSelectAcupoint(point.id)}
-                  >
-                    <strong>{point.name}</strong>
-                    <span>{point.aliases[0]}</span>
-                  </button>
-                ))}
+            <footer className="scene-footer">
+              <div className="floating-legend" aria-label="图例">
+                <span>
+                  <i className="legend-dot info" />
+                  穴位信息
+                </span>
+                <span>
+                  <i className="legend-dot acupuncture" />
+                  针灸演示
+                </span>
+                <span>
+                  <i className="legend-dot moxibustion" />
+                  艾灸演示
+                </span>
               </div>
-            )}
-
-            <div className="scene-canvas-hitbox">
-              <Suspense fallback={<div className="scene-loading">3D 场景加载中...</div>}>
-                <HumanScene
-                  acupoints={filteredAcupoints}
-                  selectedAcupoint={selectedAcupoint}
-                  hoveredAcupointId={hoveredAcupointId}
-                  displayMode={displayMode}
-                  viewPreset={viewPreset}
-                  showMarkers={showMarkers}
-                  procedureKey={procedureKey}
-                  onSelectAcupoint={handleSelectAcupoint}
-                  onClearSelection={handleClearSelection}
-                  onHoverAcupoint={setHoveredAcupointId}
-                />
-              </Suspense>
-            </div>
-
-            <div className="floating-legend" aria-label="图例">
-              <span>
-                <i className="legend-dot info" />
-                穴位信息
-              </span>
-              <span>
-                <i className="legend-dot acupuncture" />
-                针灸演示
-              </span>
-              <span>
-                <i className="legend-dot moxibustion" />
-                艾灸演示
-              </span>
-            </div>
+            </footer>
           </div>
         </section>
       </main>

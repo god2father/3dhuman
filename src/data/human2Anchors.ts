@@ -1,3 +1,11 @@
+/*
+ * @Author: your name
+ * @Date: 2026-03-17 16:00:23
+ * @LastEditors: your name
+ * @LastEditTime: 2026-03-18 11:27:16
+ * @Description: 
+ * @FilePath: \3Dhuman\src\data\human2Anchors.ts
+ */
 import type { SurfaceAnchor } from '../types'
 
 // These anchors are calibrated specifically for the human2 model.
@@ -7,10 +15,13 @@ export const human2SurfaceAnchors: Record<string, SurfaceAnchor> = {
     position: [0, 2.78, -0.01],
     normal: [0, 1, 0],
   },
-  yintang: {
-    position: [0, 2.45, 0.23],
-    normal: [0, 0.18, 0.98],
-  },
+ yintang: {
+  meshName: 'Object_5',
+  triangleIndex: 91270,
+  barycentric: [0.188257, 0.405667, 0.406076],
+  normal: [0.1095, 0.0244, 0.9937],
+  position: [0.0004, 2.9419, 0.1475],
+},
   chengjiang: {
     position: [0, 2.12, 0.25],
     normal: [0, -0.08, 0.98],

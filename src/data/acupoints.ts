@@ -107,9 +107,9 @@ const createBilateralAcupoint = (seed: BilateralSeed): Acupoint[] =>
       animationProfile: {
         acupuncture: {
           angle: seed.needleAngle ?? [0, 0, 1],
-          depth: 0.12,
-          needleLength: 0.48,
-          effectRadius: 0.18,
+          depth: 0.15,
+          needleLength: 0.05,
+          effectRadius: 0.16,
         },
         moxibustion: {
           radius: 0.2,
@@ -147,9 +147,9 @@ const createCenterAcupoint = (seed: CenterSeed): Acupoint => {
     animationProfile: {
       acupuncture: {
         angle: seed.needleAngle ?? [0, 0, 1],
-        depth: 0.1,
-        needleLength: 0.44,
-        effectRadius: 0.18,
+        depth: 0.14,
+        needleLength: 0.045,
+        effectRadius: 0.16,
       },
       moxibustion: {
         radius: 0.22,

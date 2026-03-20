@@ -51,7 +51,22 @@ export interface AcupunctureProfile {
   depth: number
   needleLength: number
   effectRadius: number
+  approachDistance?: number
+  entryOffset?: number
+  insertDuration?: number
+  needleScale?: number
+  tipOffset?: number
+  tilt?: Vector3Tuple
 }
+
+export type NeedleState =
+  | 'hidden'
+  | 'idle'
+  | 'preview'
+  | 'snapped'
+  | 'inserting'
+  | 'inserted'
+  | 'resetting'
 
 export interface MoxibustionProfile {
   radius: number
